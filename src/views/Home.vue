@@ -195,11 +195,30 @@ export default {
     }
   },
   mounted () {
+    if (localStorage.departureStation) {
+      this.departureStation = JSON.parse(localStorage.departureStation)
+    }
+    if (localStorage.arrivalStation) {
+      this.arrivalStation = JSON.parse(localStorage.arrivalStation)
+    }
+
     this.$http
       .get(URL + URL_STATIONS)
       .then(response => {
         this.stations = response.data
       })
+  },
+  watch: {
+    departureStation: function () {
+      if (this.departureStation) {
+        localStorage.departureStation = JSON.stringify(this.departureStation)
+      }
+    },
+    arrivalStation: function () {
+      if (this.arrivalStation) {
+        localStorage.arrivalStation = JSON.stringify(this.arrivalStation)
+      }
+    }
   }
 }
 </script>
