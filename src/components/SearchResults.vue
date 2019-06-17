@@ -1,14 +1,5 @@
 <template>
-  <div class="search-results" v-if="searchResultList">
-    <div class="search-results-header">
-      <div class="search-results-header__title">{{ title }}</div>
-      <div class="search-results-header-city">
-        <div class="search-results-header-city__name">{{ searchResultList.departureStationName }}</div>
-        <img class="search-results-header-city__arrow" alt="From to" src="../assets/arrow_right.svg">
-        <div class="search-results-header-city__name">{{ searchResultList.arrivalStationName }}</div>
-      </div>
-    </div>
-
+  <div v-if="searchResultList">
     <div class="search-results-date">
       <div class="step-week" v-on:click="searchPreviousWeek">
         <img class="step-week__arrow" src="../assets/left-arrow-chevron.svg" alt="left arrow">
@@ -72,8 +63,7 @@ export default {
     dateBoundaries: {
       minDate: null,
       maxDate: null
-    },
-    title: null
+    }
   },
   data () {
     return {
@@ -149,38 +139,6 @@ export default {
 </script>
 
 <style lang="sass" scoped>
-.search-results
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23)
-
-.search-results-header
-  display: flex
-  flex-wrap: wrap
-  align-items: center
-  background-color: #F2F2F2
-  padding: 0.5rem
-
-.search-results-header__title
-  font-size: 18px
-  color: #919191
-  width: 150px
-
-.search-results-header-city
-  display: flex
-  justify-content: space-between
-  width: 100%
-
-.search-results-header-city__name
-  font-size: 20px
-  font-weight: bolder
-  color: #06038D
-  white-space: nowrap
-  width: 100px
-  overflow-x: hidden
-  text-overflow: ellipsis
-
-.search-results-header-city__arrow
-  padding: 0 20px
-
 .search-result-list
   background-color: white
   position: relative

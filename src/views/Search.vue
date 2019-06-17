@@ -32,30 +32,42 @@
         cart
       </div>
       <div class="content__results">
-        <template v-if="outboundSearch">
-          <SearchResults
-            class="search-results"
-            v-bind:searchParameters="outboundSearch"
-            v-bind:title="'OUTBOUND'"
-            v-bind:dateBoundaries="departureDateBounderies"
-            v-on:dateChanged="onOutboundDateChange"
-          />
-        </template>
+        <search-results-block
+          v-bind:title="'OUTBOUND'"
+          v-bind:from-name="cityNames.arrivalStationName"
+          v-bind:to-name="cityNames.departureStationName">
+          <template v-if="outboundSearch">
+            <SearchResults
+              class="search-results"
+              v-bind:searchParameters="outboundSearch"
+              v-bind:dateBoundaries="departureDateBoundaries"
+              v-on:dateChanged="onOutboundDateChange"
+            />
+          </template>
+        </search-results-block>
 
-        <template v-if="inboundSearch">
-          <SearchResults
-            class="search-results"
-            v-bind:searchParameters="inboundSearch"
-            v-bind:title="'INBOUND'"
-            v-bind:dateBoundaries="returnDateBounderies"
-            v-on:dateChanged="onInboundDateChange"
-          />
-        </template>
-
-        <div v-if="!inboundSearch" style="width: 100%; padding: 10px">
-          <datepicker  v-model="returnDate" placeholder="Return"></datepicker>
-          <button v-on:click="searchReturn">SEARCH</button>
-        </div>
+        <search-results-block
+          v-bind:title="'INBOUND'"
+          v-bind:from-name="cityNames.arrivalStationName"
+          v-bind:to-name="cityNames.departureStationName">
+          <template v-if="inboundSearch">
+            <SearchResults
+              class="search-results"
+              v-bind:searchParameters="inboundSearch"
+              v-bind:dateBoundaries="returnDateBoundaries"
+              v-on:dateChanged="onInboundDateChange"
+            />
+          </template>
+          <div v-else class="return-datepicker">
+            <datepicker
+              class="return-datepicker__input"
+              v-model="returnDate"
+              placeholder="Return"
+              :disabled-dates="disableReturnDate">
+            </datepicker>
+            <button class="return-datepicker__btn" v-on:click="searchReturn">SEARCH</button>
+          </div>
+        </search-results-block>
       </div>
     </div>
 
@@ -65,6 +77,7 @@
 <script>
 import SearchResults from '@/components/SearchResults.vue'
 import Datepicker from 'vuejs-datepicker'
+import SearchResultsBlock from '../components/SearchResultsBlock'
 import { dateFormatter } from '../util/formatter'
 
 const PARAM_REURN_DATE = '&returnDate='
@@ -73,7 +86,8 @@ export default {
   name: 'search',
   components: {
     SearchResults,
-    Datepicker
+    Datepicker,
+    SearchResultsBlock
   },
   data () {
     return {
@@ -135,17 +149,22 @@ export default {
         departureDate: this.$route.query.departureDate
       }
     },
-    departureDateBounderies: function () {
+    departureDateBoundaries: function () {
       const dateObj = new Date()
       return {
         minDate: dateFormatter(dateObj),
         maxDate: this.$route.query.returnDate
       }
     },
-    returnDateBounderies: function () {
+    returnDateBoundaries: function () {
       return {
         minDate: this.$route.query.departureDate,
         maxDate: null
+      }
+    },
+    disableReturnDate: function () {
+      return {
+        to: new Date(this.$route.query.departureDate)
       }
     }
   },
@@ -205,6 +224,7 @@ export default {
   .content
     display: flex
     flex-wrap: wrap
+    padding-bottom: 300px
 
   .content__cart
     width: 100%
@@ -226,6 +246,25 @@ export default {
 
   .search-results
     margin-bottom: 4rem
+
+  .return-datepicker
+    width: 100%
+    padding: 3rem 0.5rem 5rem
+    display: flex
+    justify-content: center
+
+  .return-datepicker__input
+    width: 300px
+
+  .return-datepicker__btn
+    margin-left: 0.5rem
+    background-color: #3434E0
+    font-size: 18px
+    text-transform: uppercase
+    color: white
+    font-weight: bold
+    padding: 0 1rem
+    border-radius: 3px
 
   @media (min-width: 576px)
     .header
