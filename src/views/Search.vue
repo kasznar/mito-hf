@@ -8,14 +8,14 @@
         <div class="header-city">
           <div class="header-city__title">LEAVING FROM</div>
           <div class="header-city__city">
-              {{ routeParams.departureStationName }}
+              {{ cityNames.departureStationName }}
           </div>
         </div>
         <img alt="Right arrow" class="header__arrows" src="../assets/two-way-arrows.svg">
         <div class="header-city">
           <div class="header-city__title">&nbsp;</div>
           <div class="header-city__city">
-            {{ routeParams.arrivalStationName }}
+            {{ cityNames.arrivalStationName }}
           </div>
         </div>
       </template>
@@ -32,11 +32,27 @@
         cart
       </div>
       <div class="content__results">
-        <SearchResults class="search-results" v-bind:searchResultList="outbound" v-bind:title="'OUTBOUND'"/>
+        <template v-if="outboundSearch">
+          <SearchResults
+            class="search-results"
+            v-bind:searchParameters="outboundSearch"
+            v-bind:title="'OUTBOUND'"
+            v-bind:dateBoundaries="departureDateBounderies"
+            v-on:dateChanged="onOutboundDateChange"
+          />
+        </template>
 
-        <SearchResults class="search-results" v-bind:searchResultList="inbound" v-bind:title="'INBOUND'"/>
+        <template v-if="inboundSearch">
+          <SearchResults
+            class="search-results"
+            v-bind:searchParameters="inboundSearch"
+            v-bind:title="'INBOUND'"
+            v-bind:dateBoundaries="returnDateBounderies"
+            v-on:dateChanged="onInboundDateChange"
+          />
+        </template>
 
-        <div v-if="!inbound" style="width: 100%; padding: 10px">
+        <div v-if="!inboundSearch" style="width: 100%; padding: 10px">
           <datepicker  v-model="returnDate" placeholder="Return"></datepicker>
           <button v-on:click="searchReturn">SEARCH</button>
         </div>
@@ -51,12 +67,6 @@ import SearchResults from '@/components/SearchResults.vue'
 import Datepicker from 'vuejs-datepicker'
 import { dateFormatter } from '../util/formatter'
 
-const URL = 'https://mock-air.herokuapp.com'
-const URL_SEARCH = '/search'
-const SEARCH_PARAM_DEPARTURE = '?departureStation='
-const SEARCH_PARAM_ARRIVAL = '&arrivalStation='
-const SEARCH_PARAM_DATE = '&date='
-
 const PARAM_REURN_DATE = '&returnDate='
 
 export default {
@@ -67,32 +77,50 @@ export default {
   },
   data () {
     return {
-      outbound: null,
-      inbound: null,
+      outboundSearch: null,
+      inboundSearch: null,
       returnDate: null
     }
   },
   methods: {
-    getSearchResults: function (departureStation, arrivalStation, date) {
-      // todo error handling
-      const searchRequest =
-        URL + URL_SEARCH +
-        SEARCH_PARAM_DEPARTURE + departureStation +
-        SEARCH_PARAM_ARRIVAL + arrivalStation +
-        SEARCH_PARAM_DATE + date
-
-      return this.$http.get(searchRequest)
-    },
     searchReturn: function () {
-      this.getSearchResults(
-        this.routeParams.arrivalStation,
-        this.routeParams.departureStation,
-        this.formattedReturnDate
-      ).then(response => {
-        this.$router.replace(this.$route.fullPath + PARAM_REURN_DATE + this.formattedReturnDate)
-        this.inbound = response.data
-        this.inbound.departureStationName = this.routeParams.arrivalStationName
-        this.inbound.arrivalStationName = this.routeParams.departureStationName
+      const routeQuery = this.$route.query
+      this.inboundSearch = {
+        from: routeQuery.arrivalStation,
+        fromName: routeQuery.arrivalStationName,
+        to: routeQuery.departureStation,
+        toName: routeQuery.departureStationName,
+        date: this.formattedReturnDate
+      }
+      // hozzáadja a visszaút dátumát az url paraméterekhez
+      this.$router.replace(this.$route.fullPath + PARAM_REURN_DATE + this.formattedReturnDate)
+    },
+    updateRouteDates: function (dates) {
+      let routeParams = {
+        departureStation: this.$route.query.departureStation,
+        departureStationName: this.$route.query.departureStationName,
+        arrivalStation: this.$route.query.arrivalStation,
+        arrivalStationName: this.$route.query.arrivalStationName,
+        departureDate: dates.departureDate || this.$route.query.departureDate
+      }
+
+      if (this.$route.query.returnDate || dates.returnDate) {
+        routeParams.returnDate = dates.returnDate || this.$route.query.returnDate
+      }
+
+      this.$router.push({
+        path: 'search',
+        query: routeParams
+      })
+    },
+    onOutboundDateChange: function (value) {
+      this.updateRouteDates({
+        departureDate: value
+      })
+    },
+    onInboundDateChange: function (value) {
+      this.updateRouteDates({
+        returnDate: value
       })
     }
   },
@@ -100,36 +128,46 @@ export default {
     formattedReturnDate: function () {
       return dateFormatter(this.returnDate)
     },
-    routeParams: function () {
+    cityNames: function () {
       return {
         departureStationName: this.$route.query.departureStationName,
-        arrivalStationName: this.$route.query.arrivalStationName
+        arrivalStationName: this.$route.query.arrivalStationName,
+        departureDate: this.$route.query.departureDate
+      }
+    },
+    departureDateBounderies: function () {
+      const dateObj = new Date()
+      return {
+        minDate: dateFormatter(dateObj),
+        maxDate: this.$route.query.returnDate
+      }
+    },
+    returnDateBounderies: function () {
+      return {
+        minDate: this.$route.query.departureDate,
+        maxDate: null
       }
     }
   },
   mounted () {
     const routeQuery = this.$route.query
-    this.getSearchResults(
-      routeQuery.departureStation,
-      routeQuery.arrivalStation,
-      routeQuery.departureDate
-    ).then(response => {
-      this.outbound = response.data
-      this.outbound.departureStationName = routeQuery.departureStationName
-      this.outbound.arrivalStationName = routeQuery.arrivalStationName
-    })
+    this.outboundSearch = {
+      from: routeQuery.departureStation,
+      fromName: routeQuery.departureStationName,
+      to: routeQuery.arrivalStation,
+      toName: routeQuery.arrivalStationName,
+      date: routeQuery.departureDate
+    }
 
     // ha van megadva vissza út dátum, akkor a cél és induló állomást megcserélve végez el egy keresést
     if (routeQuery.returnDate) {
-      this.getSearchResults(
-        routeQuery.arrivalStation,
-        routeQuery.departureStation,
-        routeQuery.returnDate
-      ).then(response => {
-        this.inbound = response.data
-        this.inbound.departureStationName = routeQuery.arrivalStationName
-        this.inbound.arrivalStationName = routeQuery.departureStationName
-      })
+      this.inboundSearch = {
+        from: routeQuery.arrivalStation,
+        fromName: routeQuery.arrivalStationName,
+        to: routeQuery.departureStation,
+        toName: routeQuery.departureStationName,
+        date: routeQuery.returnDate
+      }
     }
   }
 }
