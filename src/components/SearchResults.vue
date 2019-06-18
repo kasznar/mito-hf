@@ -1,43 +1,57 @@
 <template>
-  <div v-if="searchResultList">
-    <div class="search-results-date">
-      <div class="step-week" v-on:click="searchPreviousWeek">
-        <img class="step-week__arrow" src="../assets/left-arrow-chevron.svg" alt="left arrow">
-        <span class="step-week__date">{{ previousWeek }}</span>
-      </div>
-      <div class="search-results-date__flight-date">
-        {{ flightDate }}
-      </div>
-      <div class="step-week" v-on:click="searchNextWeek">
-        <span class="step-week__date">{{ nextWeek }}</span>
-        <img class="step-week__arrow" src="../assets/right-arrow-chevron.svg" alt="right arrow">
-      </div>
-    </div>
-
-    <div class="search-result-list">
-      <div class="search-results-bundles">
-        <div class="search-results-bundles__item">&nbsp;</div>
-        <div v-for="fare in searchResultList[0].fares" v-bind:key="fare.fareSellKey"
-             class="search-results-bundles__item">
-          {{ fare.bundle }}
+  <div>
+    <template>
+      <div class="search-results-date">
+        <div class="step-week" v-on:click="searchPreviousWeek">
+          <img class="step-week__arrow" src="../assets/left-arrow-chevron.svg" alt="left arrow">
+          <span class="step-week__date">{{ previousWeek }}</span>
+        </div>
+        <div class="search-results-date__flight-date">
+          {{ flightDate }}
+        </div>
+        <div class="step-week" v-on:click="searchNextWeek">
+          <span class="step-week__date">{{ nextWeek }}</span>
+          <img class="step-week__arrow" src="../assets/right-arrow-chevron.svg" alt="right arrow">
         </div>
       </div>
-      <div v-for="flight in searchResultList" v-bind:key="flight.flightNumber"
-           class="search-result-list__row">
-        <div class="search-result-list__col search-result-list__col--time">
-          <div class="search-result-time">
-            <span>{{ formatTime(flight.departure) }}</span>
-            <img class="search-result-time__arrow" alt="From to" src="../assets/time_arrow.svg">
-            <span>{{ formatTime(flight.arrival) }}</span>
+      <template v-if="searchResultList && searchResultList.length !== 0">
+        <div class="search-result-list">
+          <div class="search-results-bundles">
+            <div class="search-results-bundles__item">&nbsp;</div>
+            <div v-for="fare in searchResultList[0].fares" v-bind:key="fare.fareSellKey"
+                 class="search-results-bundles__item">
+              {{ fare.bundle }}
+            </div>
+          </div>
+          <div v-for="flight in searchResultList" v-bind:key="flight.flightNumber"
+               class="search-result-list__row">
+            <div class="search-result-list__col search-result-list__col--time">
+              <div class="search-result-time">
+                <span>{{ formatTime(flight.departure) }}</span>
+                <img class="search-result-time__arrow" alt="From to" src="../assets/time_arrow.svg">
+                <span>{{ formatTime(flight.arrival) }}</span>
+              </div>
+            </div>
+            <div v-for="fare in flight.fares" v-bind:key="fare.fareSellKey"
+                 class="search-result-list__col">
+              <button
+                v-if="flight.remainingTickets > 0"
+                class="flight-price-btn"
+                v-on:click="onTicketClick(flight, fare)"
+                v-bind:class="{'flight-price-btn__selected': fare.selected}"
+              >
+                ${{ fare.price }}
+              </button>
+            </div>
           </div>
         </div>
-        <div v-for="fare in flight.fares" v-bind:key="fare.fareSellKey"
-             class="search-result-list__col">
-          <button class="flight-price-btn">
-            ${{ fare.price }}
-          </button>
-        </div>
-      </div>
+      </template>
+    </template>
+    <div class="search-results-footer" v-if="loading">
+        <loading-animation></loading-animation>
+    </div>
+    <div class="search-results-footer" v-if="(!searchResultList || searchResultList.length === 0) && !loading">
+      No search results
     </div>
   </div>
 </template>
@@ -45,6 +59,8 @@
 <script>
 import { timeFormatter } from '../util/formatter'
 import moment from 'moment'
+import { EventBus } from '../eventbus'
+import LoadingAnimation from '../components/LoadingAnimation'
 
 const URL = 'https://mock-air.herokuapp.com'
 const URL_SEARCH = '/search'
@@ -54,6 +70,7 @@ const SEARCH_PARAM_DATE = '&date='
 
 export default {
   name: 'SearchResults',
+  components: { LoadingAnimation },
   props: {
     searchParameters: {
       from: null,
@@ -65,9 +82,13 @@ export default {
       maxDate: null
     }
   },
+  component: {
+    LoadingAnimation
+  },
   data () {
     return {
-      searchResultList: null
+      searchResultList: null,
+      loading: false
     }
   },
   methods: {
@@ -75,7 +96,6 @@ export default {
       return timeFormatter(dateStr)
     },
     getSearchResults: function (departureStation, arrivalStation, date) {
-      // todo error handling
       const searchRequest =
         URL + URL_SEARCH +
         SEARCH_PARAM_DEPARTURE + departureStation +
@@ -85,15 +105,20 @@ export default {
       return this.$http.get(searchRequest)
     },
     searchDate: function (date) {
+      this.searchResultList = null
       this.searchParameters.date = date
+      this.loading = true
       this.getSearchResults(
         this.searchParameters.from,
         this.searchParameters.to,
         this.searchParameters.date
       ).then(response => {
-        this.searchResultList = response.data
-        this.searchResultList.departureStationName = this.searchParameters.fromName
-        this.searchResultList.arrivalStationName = this.searchParameters.toName
+        this.loading = false
+        if (response.data.length === 0) {
+          this.searchResultList = null
+        } else {
+          this.searchResultList = response.data
+        }
       })
     },
     searchNextWeek: function () {
@@ -119,6 +144,49 @@ export default {
       }
       this.searchDate(newDate)
       this.$emit('dateChanged', this.searchParameters.date)
+    },
+    unSelectTickets: function () {
+      for (let i = 0; i < this.searchResultList.length; i++) {
+        for (let j = 0; j < this.searchResultList[i].fares.length; j++) {
+          // vue nem tudja követni, ha a tömb egy elemének új értéket adok. Ezért:
+          let newFare = Object.assign({}, this.searchResultList[i].fares[j])
+          newFare.selected = false
+          this.$set(this.searchResultList[i].fares, j, newFare)
+        }
+      }
+    },
+    onTicketClick: function (selectedFlight, selectedFare) {
+      for (let i = 0; i < this.searchResultList.length; i++) {
+        for (let j = 0; j < this.searchResultList[i].fares.length; j++) {
+          // ha megegyezik a kiválasztottal akkor átállítja a selested értékét, ellenkező esetben leveszi a kijelölést
+          if (this.searchResultList[i].fares[j].fareSellKey === selectedFare.fareSellKey) {
+            // vue nem tudja követni, ha a tömb egy elemének új értéket adok. Ezért:
+            let newFare = Object.assign({}, this.searchResultList[i].fares[j])
+            newFare.selected = !newFare.selected
+            this.$set(this.searchResultList[i].fares, j, newFare)
+            // ha kijelölés történt akkor kibocsátja, ha nem akkor nullal törli
+            if (newFare.selected) {
+              this.$emit(
+                'ticketClicked',
+                {
+                  selectedFlight,
+                  selectedFare,
+                  airports: {
+                    fromName: this.searchParameters.fromName,
+                    toName: this.searchParameters.toName
+                  }
+                }
+              )
+            } else {
+              this.$emit('ticketClicked', null)
+            }
+          } else {
+            let newFare = Object.assign({}, this.searchResultList[i].fares[j])
+            newFare.selected = false
+            this.$set(this.searchResultList[i].fares, j, newFare)
+          }
+        }
+      }
     }
   },
   computed: {
@@ -134,6 +202,11 @@ export default {
   },
   mounted () {
     this.searchDate(this.searchParameters.date)
+  },
+  created () {
+    EventBus.$on('reset-cart', () => {
+      this.unSelectTickets()
+    })
   }
 }
 </script>
@@ -190,6 +263,10 @@ export default {
   height: 50px
   background-color: white
 
+.flight-price-btn__selected
+  background-color: #C6007E !important
+  color: white !important
+
 .flight-price-btn:hover
   background-color: #ffe9f7
 
@@ -203,6 +280,7 @@ export default {
 
 .search-results-date
   display: flex
+  flex-wrap: wrap
   justify-content: space-between
   background-color: white
   padding: 1rem
@@ -211,6 +289,8 @@ export default {
   font-size: 18px
   color: #343434
   text-align: center
+  width: 100%
+  order: -1
 
 .step-week
   align-items: center
@@ -224,9 +304,18 @@ export default {
 .step-week__date
   padding: 0 0.5rem
 
+.search-results-footer
+  padding: 1rem
+  height: 120px
+  text-align: center
+
 @media (min-width: 576px)
   .search-results-header-city__name
     width: auto
+
+  .search-results-date__flight-date
+    width: unset !important
+    order: unset !important
 
 @media (min-width: 768px)
   .search-results-header

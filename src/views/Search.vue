@@ -29,7 +29,74 @@
 
     <div class="content">
       <div class="content__cart">
-        cart
+        <div class="cart-header">
+          <div class="cart-header__title">FLIGHTS</div>
+          <div class="cart-header__price">${{sumPrice}}</div>
+        </div>
+        <template v-if="!outboundTicket">
+          <div class="empty-cart">
+            Choose an outbound flight
+          </div>
+        </template>
+        <template v-if="outboundTicket">
+          <div class="cart-item">
+            <div class="cart-item__date">
+              <div class="calendar-icon">
+                <div class="calendar-icon__month">
+                  {{ outboundTicket.selectedFlight.departure | formatCartMonth }}
+                </div>
+                <div class="calendar-icon__day">
+                  {{ outboundTicket.selectedFlight.departure | formatCartDay }}
+                </div>
+              </div>
+            </div>
+            <div class="cart-item-info">
+              <div class="cart-item-info__cities">
+                {{ outboundTicket.airports.fromName }}-
+                <br>
+                {{ outboundTicket.airports.toName }}
+              </div>
+              <div class="cart-item-info__time">
+                {{ outboundTicket.selectedFlight | formatCartTime }}
+              </div>
+            </div>
+          </div>
+        </template>
+        <template v-if="inboundTicket">
+          <div class="cart-item cart-item--dotted-border">
+            <div class="cart-item__date">
+              <div class="calendar-icon">
+                <div class="calendar-icon__month">
+                  {{ inboundTicket.selectedFlight.departure | formatCartMonth }}
+                </div>
+                <div class="calendar-icon__day">
+                  {{ inboundTicket.selectedFlight.departure | formatCartDay }}
+                </div>
+              </div>
+            </div>
+            <div class="cart-item-info">
+              <div class="cart-item-info__cities">
+                {{ inboundTicket.airports.fromName }}-
+                <br>
+                {{ inboundTicket.airports.toName }}
+              </div>
+              <div class="cart-item-info__time">
+                {{ inboundTicket.selectedFlight | formatCartTime }}
+              </div>
+            </div>
+          </div>
+        </template>
+        <div class="cart-total">
+          <span>TOTAL</span>
+          <span>${{sumPrice}}</span>
+        </div>
+
+        <button
+          class="cart-pay-btn"
+          v-on:click="showModal=true"
+          :disabled="!outboundTicket && !inboundTicket">
+          PAY NOW
+        </button>
       </div>
       <div class="content__results">
         <search-results-block
@@ -42,6 +109,7 @@
               v-bind:searchParameters="outboundSearch"
               v-bind:dateBoundaries="departureDateBoundaries"
               v-on:dateChanged="onOutboundDateChange"
+              v-on:ticketClicked="outboundClicked"
             />
           </template>
         </search-results-block>
@@ -56,6 +124,7 @@
               v-bind:searchParameters="inboundSearch"
               v-bind:dateBoundaries="returnDateBoundaries"
               v-on:dateChanged="onInboundDateChange"
+              v-on:ticketClicked="inboundClicked"
             />
           </template>
           <div v-else class="return-datepicker">
@@ -71,6 +140,75 @@
       </div>
     </div>
 
+    <div class="modal" v-if="showModal">
+      <div class="modal-overlay" v-on:click="showModal=false"></div>
+      <div class="modal__wrapper">
+        <div class="modal-content">
+          <div class="modal-content__header">
+            <span>Thanks for buying your tickets at mito airlin</span>
+          </div>
+          <div class="modal-content__items">
+            <template v-if="outboundTicket">
+              <div class="cart-item">
+                <div class="cart-item__date">
+                  <div class="calendar-icon">
+                    <div class="calendar-icon__month">
+                      {{ outboundTicket.selectedFlight.departure | formatCartMonth }}
+                    </div>
+                    <div class="calendar-icon__day">
+                      {{ outboundTicket.selectedFlight.departure | formatCartDay }}
+                    </div>
+                  </div>
+                </div>
+                <div class="cart-item-info">
+                  <div class="cart-item-info__cities">
+                    {{ outboundTicket.airports.fromName }}-
+                    <br>
+                    {{ outboundTicket.airports.toName }}
+                  </div>
+                  <div class="cart-item-info__time">
+                    {{ outboundTicket.selectedFlight | formatCartTime }}
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-if="inboundTicket">
+              <div class="cart-item cart-item--inbound">
+                <div class="cart-item__date">
+                  <div class="calendar-icon">
+                    <div class="calendar-icon__month">
+                      {{ inboundTicket.selectedFlight.departure | formatCartMonth }}
+                    </div>
+                    <div class="calendar-icon__day">
+                      {{ inboundTicket.selectedFlight.departure | formatCartDay }}
+                    </div>
+                  </div>
+                </div>
+                <div class="cart-item-info">
+                  <div class="cart-item-info__cities">
+                    {{ inboundTicket.airports.fromName }}-
+                    <br>
+                    {{ inboundTicket.airports.toName }}
+                  </div>
+                  <div class="cart-item-info__time">
+                    {{ inboundTicket.selectedFlight | formatCartTime }}
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="modal-content__footer">
+            <div class="modal-total">
+              <span class="modal-total__text">TOTAL: </span>
+              <span class="modal-total__value">${{sumPrice}}</span>
+            </div>
+            <div class="modal-reset" v-on:click="resetCart">
+              No, thanks (reset)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -79,6 +217,8 @@ import SearchResults from '@/components/SearchResults.vue'
 import Datepicker from 'vuejs-datepicker'
 import SearchResultsBlock from '../components/SearchResultsBlock'
 import { dateFormatter } from '../util/formatter'
+import moment from 'moment'
+import { EventBus } from '../eventbus'
 
 const PARAM_REURN_DATE = '&returnDate='
 
@@ -93,7 +233,10 @@ export default {
     return {
       outboundSearch: null,
       inboundSearch: null,
-      returnDate: null
+      returnDate: null,
+      outboundTicket: null,
+      inboundTicket: null,
+      showModal: false
     }
   },
   methods: {
@@ -136,6 +279,18 @@ export default {
       this.updateRouteDates({
         returnDate: value
       })
+    },
+    outboundClicked: function (value) {
+      this.outboundTicket = value
+    },
+    inboundClicked: function (value) {
+      this.inboundTicket = value
+    },
+    resetCart: function () {
+      this.showModal = false
+      this.outboundTicket = null
+      this.inboundTicket = null
+      EventBus.$emit('reset-cart')
     }
   },
   computed: {
@@ -166,6 +321,16 @@ export default {
       return {
         to: new Date(this.$route.query.departureDate)
       }
+    },
+    sumPrice: function () {
+      let res = 0
+      if (this.outboundTicket) {
+        res += this.outboundTicket.selectedFare.price
+      }
+      if (this.inboundTicket) {
+        res += this.inboundTicket.selectedFare.price
+      }
+      return res
     }
   },
   mounted () {
@@ -187,6 +352,19 @@ export default {
         toName: routeQuery.departureStationName,
         date: routeQuery.returnDate
       }
+    }
+  },
+  filters: {
+    formatCartTime: function (selectedFlight) {
+      let departureTime = moment(selectedFlight.departure).format('ddd hh:mm')
+      let arrivalTime = moment(selectedFlight.arrival).format('hh:mm')
+      return departureTime + ' - ' + arrivalTime
+    },
+    formatCartMonth: function (date) {
+      return moment(date).format('MMM')
+    },
+    formatCartDay: function (date) {
+      return moment(date).format('D')
     }
   }
 }
@@ -228,6 +406,7 @@ export default {
 
   .content__cart
     width: 100%
+    order: 99
 
   .content__results
     width: 100%
@@ -266,6 +445,152 @@ export default {
     padding: 0 1rem
     border-radius: 3px
 
+  .content__cart
+    padding: 0 1rem
+    display: flex
+    flex-direction: column
+
+  .cart-header
+    display: flex
+    padding: 1rem
+    background-color: white
+    justify-content: space-between
+    font-size: 14px
+    font-weight: bold
+
+  .cart-header__price
+    color: #06038D
+
+  .cart-header__title
+    color: #343434
+
+  .cart-item
+    display: flex
+    background-color: white
+    padding: 1rem
+
+  .cart-item--dotted-border
+    border-top: 1px dashed #C1C1C1
+
+  .calendar-icon
+    border: 2px solid #E1E1E1
+    border-radius: 3px
+    height: 100%
+
+  .calendar-icon__month
+    text-align: center
+    padding: 3px 5px
+    background-color: #F2F2F2
+    font-size: 15px
+    text-transform: uppercase
+    font-weight: bold
+
+  .calendar-icon__day
+    text-align: center
+    font-weight: bold
+    font-size: 20px
+
+  .cart-item-info
+    padding-left: 0.5rem
+
+  .cart-item-info__cities
+    font-size: 15px
+    font-weight: bold
+    color: #343434
+
+  .empty-cart
+    color: #919191
+    font-size: 16px
+    font-weight: bold
+    padding: 2rem 1rem
+    background-color: white
+
+  .cart-total
+    display: flex
+    justify-content: space-between
+    padding: 1rem
+    background-color: #06038D
+    font-weight: bold
+    color: white
+
+  .modal
+    position: fixed
+    width: 100vw
+    height: 100vh
+    left: 0
+    top: 0
+    display: flex
+    justify-content: center
+
+  .modal-overlay
+    position: fixed
+    width: 100vw
+    height: 100vh
+    left: 0
+    top: 0
+    background-color: black
+    opacity: 0.8
+
+  .modal__wrapper
+    width: 600px
+
+  .modal-content
+    margin-top: 5rem
+    width: 100%
+    background-color: white
+    border-radius: 3px
+    position: relative
+    z-index: 10
+
+  .modal-content__header
+    text-align: center
+    padding: 1.5rem 1rem
+    background-color: #F2F2F2
+    color: #06038D
+    text-transform: uppercase
+    font-size: 16px
+    border-radius: 3px
+
+  .modal-content__items
+    display: flex
+    flex-wrap: wrap
+    justify-content: space-between
+    padding: 1rem
+
+  .modal-content__footer
+    display: flex
+    justify-content: space-between
+    align-items: center
+    padding: 2rem
+    font-size: 20px
+
+  .modal-total__text
+    color: #343434
+
+  .modal-total__value
+    color: #06038D
+
+  .modal-reset
+    text-transform: uppercase
+    text-decoration: underline
+    font-size: 12px
+    color: #C6007E
+    cursor: pointer
+
+  .cart-pay-btn
+    width: 100%
+    outline: none
+    color: white
+    font-size: 16px
+    text-align: center
+    border-radius: 3px
+    background-color: #C6007E
+    border: none
+    font-weight: bold
+    margin-top: 1rem
+    padding: 1rem 0.5rem
+    cursor: pointer
+
   @media (min-width: 576px)
     .header
       justify-content: left
@@ -274,13 +599,6 @@ export default {
       width: auto !important
 
   @media (min-width: 768px)
-    .content__results
-      width: 80% !important
-      padding-right: 2rem
-
-    .content__cart
-      width: 20% !important
-
     .header__icon
       margin-right: 200px
 
@@ -301,4 +619,13 @@ export default {
 
     .results-header__title
       font-size: 40px !important
+
+  @media (min-width: 1200px)
+    .content__results
+      width: 80% !important
+      padding-right: 2rem
+
+    .content__cart
+      width: 20% !important
+      order: unset !important
 </style>
